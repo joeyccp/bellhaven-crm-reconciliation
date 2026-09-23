@@ -1,0 +1,326 @@
+BELHAVEN CRM RECONCILIATION — PROJECT TIMELINE
+================================================
+
+This document summarizes the major decisions and product changes in the order
+they occurred. It is a reconstruction of the working process, not a verbatim
+chat transcript.
+
+
+1. UNDERSTANDING THE ASSIGNMENT
+-------------------------------
+
+Initial goal:
+- Collect Bellhaven facility data from the operator website.
+- Compare it with CRM accounts.
+- Recommend and, after approval, apply the appropriate CRM changes.
+
+Website fields collected:
+- Facility name
+- Street address
+- City, state, and ZIP
+- Care offerings
+- Administrator
+- Phone
+- Source page URL
+
+Early product decision:
+- Build a review-first application rather than immediately writing changes.
+- Keep website evidence and the current CRM record visible side by side.
+- Require an explicit approval before any CRM mutation.
+
+
+2. BUILDING THE FIRST MATCHING LOGIC
+------------------------------------
+
+The first matching version compared website facilities with CRM accounts using:
+- Normalized street address
+- ZIP
+- City and state
+- Facility name similarity
+- Phone
+
+Reasoning:
+- Address and ZIP are the strongest identity signals because a building usually
+  stays in the same place even when its operator or branding changes.
+- Name and phone are useful supporting signals but can change.
+
+The first version displayed a numeric match percentage. During review, we
+recognized that this looked more precise than the underlying heuristic really
+was. The UI was changed to evidence-based levels:
+- High confidence
+- Medium confidence
+- Low confidence
+- Manual review required
+
+The numeric score remained useful internally for ranking candidates, but was no
+longer presented as a probability.
+
+
+3. MAKING THE COMPARISON EASIER TO REVIEW
+-----------------------------------------
+
+The initial output was raw JSON and was difficult to scan. It was redesigned as
+a side-by-side comparison:
+- Operator website evidence
+- CRM record before change
+- Proposed result / what will happen
+
+Further review improvements:
+- Highlight fields that differ after normalization.
+- Include Administrator and Phone from the website.
+- Show CRM revenue and outstanding AR where relevant.
+- Show the CRM record's last-updated timestamp.
+- Use a shorter facility title instead of repeating both long names in the
+  heading.
+- Clearly show the matched CRM account while keeping technical IDs secondary.
+
+
+4. SEPARATING WORKFLOW STATUS FROM CHANGE TYPE
+----------------------------------------------
+
+The first filters mixed two different concepts together. They were separated
+into:
+
+Review status:
+- Pending
+- Approved
+- Rejected
+- Withdrawn
+- All statuses
+
+Change type:
+- Safe match
+- Update
+- CHOW
+- Duplicate
+- New account
+- Missing from website
+
+This made it possible to answer two separate questions:
+- Where is the proposal in the review workflow?
+- What kind of CRM action is being proposed?
+
+
+5. CLARIFYING THE SOURCE OF TRUTH
+---------------------------------
+
+The early UI called the website the "source of truth." That statement was too
+broad.
+
+The logic was refined to reflect a narrower and more defensible rule:
+- The operator website is evidence of the facilities currently claimed by the
+  selected parent company.
+- It does not, by itself, prove that a differently owned CRM account is the same
+  legal or operating entity.
+
+The app added a Reconciliation Context showing:
+- Target parent company
+- Operator evidence source
+- Website collection time
+- CRM snapshot time
+
+Each proposal stores a snapshot of this context so historical decisions remain
+tied to the parent and source used at that time.
+
+
+6. ADDING PARENT-AWARE DECISION LOGIC
+-------------------------------------
+
+The matching problem was separated into three questions:
+
+1) Is this likely the same physical facility?
+   - Address and ZIP are primary evidence.
+   - Name and phone are supporting evidence.
+
+2) Does the ownership relationship make sense?
+   - Check whether the CRM parent matches the target parent.
+   - Treat a parent mismatch separately from ordinary stale facility data.
+
+3) Is there enough evidence to act safely?
+   - Same facility + same parent: normal data synchronization.
+   - Same address but conflicting identity and parent evidence: manual review.
+   - Avoid automatically inferring ownership from address alone.
+
+The manual-review rule was refined after discussion:
+- If address matches but Name, Care offerings, and Phone all differ, that alone
+  does not necessarily block an update when the CRM parent already matches the
+  target parent.
+- If those fields differ and the Parent also differs, the operator website is
+  not enough evidence to safely update the CRM record. The proposal becomes
+  Manual Review Required.
+
+
+7. USING ADMINISTRATOR AS CONTINUITY EVIDENCE
+----------------------------------------------
+
+In one ambiguous example, the website and CRM facility details differed, but
+the Administrator was the same.
+
+Decision:
+- A matching Administrator is useful continuity evidence and makes an ownership
+  or branding change more plausible.
+- It should be explicitly mentioned in the Note.
+- It should not, by itself, override a parent conflict or bypass manual review.
+
+
+8. MAKING RECOMMENDATIONS AND NOTES EXPLAINABLE
+-----------------------------------------------
+
+The recommendation area was revised to explain:
+- What the evidence suggests
+- Which CRM fields will change
+- Why the proposal is safe or why it requires review
+
+All source- and parent-specific language was changed from hard-coded Bellhaven
+text to values from the reconciliation context. This allows the same workflow
+to support another operator without producing incorrect Bellhaven-specific
+notes.
+
+Parent changes were also made reviewer-friendly:
+- The CRM API still uses the Parent Account ID for the actual relationship.
+- The UI displays the Parent Account name instead of only displaying the ID.
+
+
+9. ADDING APPROVAL, REVERSAL, AND AUDIT BEHAVIOR
+------------------------------------------------
+
+The review workflow was expanded to support:
+- Approve and write to CRM
+- Reject
+- Undo an approved change through compensating CRM updates
+- Return a withdrawn update to Pending
+- Show the time of approval, rejection, or withdrawal
+
+Navigation behavior was corrected so an action does not unexpectedly move the
+reviewer to another filter or the top of the page:
+- Approving or rejecting keeps the current filter and scroll position.
+- Undoing from Approved keeps the reviewer on the Approved page.
+- Returning an item to Pending from Withdrawn keeps the reviewer on the
+  Withdrawn page.
+
+
+10. ADDING SAFE BULK ACTIONS
+----------------------------
+
+Some proposals required little individual judgment. A Safe Match change type
+was introduced for proposals where:
+- Target parent already matches
+- Full normalized address matches
+- The proposal does not change ownership-related fields
+- The proposal is not a manual-review case
+
+These records can be filtered and approved together.
+
+Missing-from-website proposals also received a constrained bulk action. That
+bulk action only changes the status to Needs Review and adds a note; it does not
+automatically deactivate or re-parent the CRM account.
+
+
+11. GENERALIZING THE APP FOR A LIVE DEMO
+----------------------------------------
+
+The original version was configured specifically for Bellhaven. For a stronger
+demo, the app was extended with a New Reconciliation flow:
+- Select a CRM parent company from a dropdown.
+- Enter the operator evidence source name and public HTTPS base URL.
+- Test the source before creating proposals.
+- Scrape the supported website structure.
+- Create an isolated reconciliation run with its own context and decisions.
+- Switch between historical runs without rewriting their original context.
+
+Security and scope controls were added:
+- Only public HTTPS sources are accepted.
+- Local, private, reserved, credential-bearing, and malformed URLs are rejected.
+- The demo clearly states that it supports the assessment site's structure;
+  production use would require reviewed source-specific adapters.
+
+
+12. FINDING THE MISSING FINDLAY FACILITY
+----------------------------------------
+
+Bellhaven Meadows of Findlay existed on both the website and in CRM, but it was
+missing from the proposal list.
+
+Root cause:
+- Its detail page existed, but the website's community-directory pagination did
+  not link to it.
+- A crawler that followed only directory links could not discover the page.
+
+Fix:
+- Add constrained CRM-assisted URL discovery.
+- Use names related to the selected parent to generate candidate facility URLs.
+- Accept a candidate only when it returns a real, parseable facility page.
+- Label the discovery method in the UI so reviewers know it was not found via
+  the normal directory.
+
+Result:
+- Findlay was recovered as a real website facility.
+- The CRM record matched on name and address but had no Parent.
+- The recommendation was clarified as assigning the existing account to
+  Bellhaven Senior Living, with the Parent name shown in the UI.
+
+
+13. FIXING RERUN IDEMPOTENCY
+----------------------------
+
+After rerunning reconciliation, seven unexpected Pending proposals appeared.
+They were not seven newly discovered facilities.
+
+Root causes:
+- Dynamic Note timestamps changed proposal fingerprints, causing already
+  decided work to look new.
+- Preserved historical CHOW accounts could later be reconsidered as duplicates.
+
+Fixes:
+- Add a stable semantic decision key that ignores dynamic Note text and run
+  metadata when identifying the same proposal.
+- Do not re-propose work that has already been decided in the same run.
+- Exclude preserved CHOW old accounts from later duplicate classification.
+
+Result:
+- Pending returned from eight records to one genuine new proposal: Findlay.
+
+
+14. FINAL MATCHING FRAMEWORK
+----------------------------
+
+The final high-level logic is:
+
+A. Confirm facility identity
+   Use address and ZIP as the strongest signals, supported by name, phone, city,
+   and state.
+
+B. Check ownership separately
+   A facility match does not automatically prove that the CRM parent should be
+   changed. Compare the existing Parent with the target Parent explicitly.
+
+C. Decide based on evidence and risk
+   Confident same-parent records can be updated efficiently. Parent conflicts or
+   weak identity evidence require human review.
+
+D. Make the decision understandable
+   Show the website and CRM records side by side, highlight conflicts, explain
+   the recommendation, and display the exact proposed changes before approval.
+
+
+15. CURRENT STATE
+-----------------
+
+The finished demo includes:
+- Website collection and normalized CRM matching
+- Parent-aware recommendations
+- Explainable confidence levels
+- Side-by-side highlighted comparisons
+- Review-status and change-type filters
+- Individual and constrained bulk approvals
+- Rejection, rollback, reopen, and decision timestamps
+- Multiple reconciliation runs with dynamic parent/source context
+- Tests covering normalization, matching, CHOW safeguards, bulk-action safety,
+  rollback, run isolation, URL validation, Administrator continuity, orphan-page
+  discovery, and rerun idempotency
+
+The submission materials include:
+- README.md for setup, behavior, and limitations
+- SUBMISSION.md for the concise assessment writeup
+- Automated tests
+- No committed CRM token, CRM snapshot, proposal data, or local review database
