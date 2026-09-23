@@ -2,15 +2,23 @@
 
 ## Matching approach
 
-I built a review-first reconciliation workflow rather than a one-off spreadsheet diff. The pipeline collects the operator's facility pages, normalizes names, street suffixes and directionals, ZIP codes, and phone numbers, then ranks CRM candidates using address, location, name similarity, and phone evidence. Address and ZIP carry the most weight because facility names and branding can change after an acquisition. The score is used only to rank candidates; the reviewer sees explainable confidence levels and the specific evidence instead of a misleading probability.
+I built the matching logic as a staged process:
 
-The workflow distinguishes routine updates, safe matches, new accounts, possible changes of ownership (CHOW), duplicates, and CRM locations missing from the operator website. The website is treated as evidence for facilities currently claimed by the selected parent—not as proof that a differently owned CRM record is the same legal entity. Same-parent, same-address updates can be bulk-approved; ambiguous ownership cases are routed to manual review. For CHOW cases with both historical revenue and open AR, the old billing account is preserved, a successor is created, and the records are linked. All CRM writes require explicit approval and can be reversed through compensating updates.
+1. **Collect and normalize.** The pipeline scrapes each Bellhaven facility and standardizes names, street suffixes and directionals, ZIP codes, and phone numbers before comparing them with CRM records.
+2. **Generate and rank candidates.** For each website location, it finds CRM candidates and ranks them using street address, ZIP, city/state, name similarity, and phone. Address and ZIP carry the most weight because a facility's branding may change while the physical location remains stable.
+3. **Validate the relationship.** A strong location match identifies the likely facility, but the current CRM parent is checked separately. The Bellhaven website shows which facilities Bellhaven currently claims; it does not, by itself, prove that a record under a different parent is the same legal or operating entity.
+4. **Route by evidence.** Same-parent, same-address differences are treated as stale CRM data and can be reviewed or bulk-approved. If the parent differs and the identity evidence is weak, the proposal is sent to manual review rather than automatically changing ownership.
+5. **Explain the result.** The numeric score is used only to rank candidates. Reviewers see a plain confidence level—High, Medium, Low, or Manual Review Required—along with the matching and conflicting fields, source page, and proposed CRM changes.
 
-## How I used AI tools
+This keeps record identity, ownership, and data freshness as separate questions instead of collapsing them into one similarity score.
 
-I used an AI coding assistant as a pair programmer to accelerate implementation, test edge cases, and iterate on the review experience. I remained responsible for the business rules and verified the output by inspecting source records, comparing proposed mutations with the assignment requirements, running the automated test suite, and manually exercising approve, reject, withdraw, reopen, filtering, and bulk-action flows. I also used AI to challenge ambiguous assumptions—for example, separating candidate-ranking scores from reviewer confidence and limiting the operator website's authority when the CRM parent differs.
+## How I used AI
+
+I used an AI coding assistant as a pair programmer to accelerate implementation, test edge cases, and iterate on the review app. I owned the business rules and validated the output myself by inspecting source records, reviewing proposed writes, running the automated test suite, and manually testing approval, rejection, rollback, filtering, and bulk actions.
 
 ## What I would build next
 
-For production, I would replace SQLite with durable hosted storage, add authentication and role-based approval, and use transactional or outbox-based execution for multi-step CRM writes. I would add source-specific scraping adapters with monitoring for website layout changes, stronger address/unit validation, and a complete immutable audit log. I would also measure match precision and reviewer overrides over time, use those outcomes to calibrate thresholds, and add alerts for ambiguous matches, stale source snapshots, and partial CRM failures.
-
+- Hosted storage instead of SQLite, with login and role-based approval.
+- Safer multi-step CRM writes using transactions or an outbox.
+- Monitoring for website layout changes and stronger address validation.
+- An immutable audit log and metrics on reviewer overrides and match precision.
