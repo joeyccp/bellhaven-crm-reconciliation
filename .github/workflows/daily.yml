@@ -1,0 +1,21 @@
+name: Daily Bellhaven reconciliation
+on:
+  schedule:
+    - cron: "15 11 * * *"
+  workflow_dispatch:
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - run: python -m bellhaven.pipeline
+        env:
+          BELLHAVEN_API_TOKEN: ${{ secrets.BELLHAVEN_API_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconciliation-proposals
+          path: data/proposals.json
+
