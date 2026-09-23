@@ -2,15 +2,13 @@
 
 ## Matching approach
 
-I built the matching logic as a staged process:
+I approached the reconciliation in three layers:
 
-1. **Collect and normalize.** The pipeline scrapes each Bellhaven facility and standardizes names, street suffixes and directionals, ZIP codes, and phone numbers before comparing them with CRM records.
-2. **Generate and rank candidates.** For each website location, it finds CRM candidates and ranks them using street address, ZIP, city/state, name similarity, and phone. Address and ZIP carry the most weight because a facility's branding may change while the physical location remains stable.
-3. **Validate the relationship.** A strong location match identifies the likely facility, but the current CRM parent is checked separately. The Bellhaven website shows which facilities Bellhaven currently claims; it does not, by itself, prove that a record under a different parent is the same legal or operating entity.
-4. **Route by evidence.** Same-parent, same-address differences are treated as stale CRM data and can be reviewed or bulk-approved. If the parent differs and the identity evidence is weak, the proposal is sent to manual review rather than automatically changing ownership.
-5. **Explain the result.** The numeric score is used only to rank candidates. Reviewers see a plain confidence level—High, Medium, Low, or Manual Review Required—along with the matching and conflicting fields, source page, and proposed CRM changes.
+1. **Is it the same facility?** I compared each website location with CRM records using address and ZIP as the strongest signals, with name and phone as supporting evidence. This accounts for facilities whose branding has changed while the physical location stayed the same.
+2. **Does the ownership relationship make sense?** After finding the likely facility, I checked whether its CRM parent matched Bellhaven. The website shows what Bellhaven currently claims, but a matching address alone is not enough to prove an ownership change.
+3. **Is there enough evidence to act?** Clear, same-parent matches can be updated confidently. Conflicting ownership or weak identity evidence is routed to manual review instead of being changed automatically.
 
-This keeps record identity, ownership, and data freshness as separate questions instead of collapsing them into one similarity score.
+The review app presents the supporting and conflicting fields side by side so the reviewer can quickly understand each recommendation before writing anything to the CRM.
 
 ## How I used AI
 
