@@ -1,4 +1,5 @@
 .env
+.DS_Store
 .venv/
 __pycache__/
 *.py[cod]
@@ -6,4 +7,3 @@ __pycache__/
 data/*.json
 data/*.db
 !data/.gitkeep
-
