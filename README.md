@@ -42,15 +42,42 @@ Open `http://127.0.0.1:5000`. Rejecting changes only records a decision. Approvi
 
 For an approved item, **Undo & revert CRM** restores prior field values. Because the sandbox API has no delete endpoint, rollback of a newly created account or CHOW successor marks that new record Inactive, deactivates its created Administrator contact, clears the CHOW link where applicable, and retains an audit record. The proposal then moves to **Withdrawn** rather than pretending the write never occurred.
 
-## Matching approach
+## Approach
 
-Candidates are ranked using normalized street address, ZIP, city, state, facility name similarity, and phone. Address is weighted most heavily because facility names commonly change after acquisitions. Low-confidence locations become create proposals rather than being silently attached to a weak candidate. Each proposal includes the source URL, matching evidence, original CRM record, and exact operations.
+Two separate questions drive the reconciliation: **is it the same building, and is the owner right?** Keeping them apart prevents bad data.
 
-The numeric heuristic is used only for internal candidate ranking; it is not presented as a probability. The review UI uses evidence-based levels instead: **High** for exact normalized address + ZIP (or ZIP + phone), **Medium** for one strong identifier, and **Low** otherwise. New-account proposals say **No reliable CRM match**, while stale website findings say **Manual review required**.
+### 1. Find every location
 
-Every existing CRM account panel includes its `updated_at` timestamp. Recency is supporting evidence for identifying stale ownership or branding, but it never overrides stronger evidence such as normalized address, the current website listing, billing history, or the CHOW rule.
+- Scrape all facilities from the website, including pages not linked from the directory (for example, Findlay).
+- Label each location by how it was discovered.
 
-The target parent and operator evidence source are configuration-driven (`TARGET_PARENT_NAME`, `TARGET_PARENT_ACCOUNT_NAME`, `SOURCE_NAME`, and `SOURCE_BASE_URL`). Each proposal snapshots that context and both collection timestamps so historical decisions retain the source and parent used at the time. The operator website is treated as evidence for facilities claimed by that parent—not as proof that a differently owned CRM record is the same entity. When parent, name, care offering, and phone all differ at an otherwise exact address, the proposal is limited to `Needs Review` plus an explanatory note. A matching active Administrator is shown as continuity evidence that makes an ownership change more likely, but it does not bypass manual review.
+### 2. Same place?
+
+- Address and ZIP are the primary signals; name and phone provide supporting evidence. Buildings do not move, but names often change.
+- Label each match **High**, **Medium**, or **Low confidence**, or **Manual review required**.
+
+### 3. Right owner?
+
+- The website shows what Bellhaven claims today; it does not prove that a differently owned CRM account is the same business.
+- If the address matches but the owner, name, and phone all differ, require manual review.
+- A matching Administrator is a helpful continuity clue, but is not enough on its own.
+
+### 4. Safe, reviewable changes
+
+- Show website and CRM records side by side, highlight differences, and explain every recommendation in plain English.
+- Do not write anything to the CRM without approval, and allow approved changes to be undone.
+- Bulk-approve low-risk updates; review ownership changes one by one.
+- If an account has revenue history and an unpaid balance, preserve it, create a new account under the new owner, and link the two records.
+- Mark duplicate records Inactive and point them to the surviving account.
+
+### 5. Safe to run daily
+
+- Remember past decisions so reruns show only new work.
+
+## How I used AI
+
+- I used an AI coding assistant as a pair programmer for speed and edge-case testing.
+- I owned the business rules and verified the source records, every proposed change, the automated tests, and the approve/reject/undo flows.
 
 ## Demo: start another parent reconciliation
 
@@ -72,11 +99,10 @@ python -m unittest discover -s tests -v
 
 ## What I would build next
 
-- Durable hosted decision storage and authenticated reviewer access.
-- Transactional/outbox handling for multi-step CHOW operations.
-- Address validation and better unit/suite parsing.
-- Alerts for ambiguous matches and API write failures.
-- Full audit history, rollback support, and metrics on match precision.
+- Run across all parent companies, prioritizing accounts with revenue or unpaid balances.
+- Add a second ownership source, such as CMS ownership data or state licensing lists.
+- Alert sales representatives when a facility changes owner.
+- Track rejected suggestions to improve matching.
 
 ## Submission
 
